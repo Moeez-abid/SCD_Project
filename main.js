@@ -15,12 +15,14 @@ function menu() {
 3. Update Record
 4. Delete Record
 5. Search Records
-6. Exit
+6. Sort Records
+7. Exit
 =====================
   `);
 
   rl.question('Choose option: ', ans => {
     switch (ans.trim()) {
+
       case '1':
         rl.question('Enter name: ', name => {
           rl.question('Enter value: ', value => {
@@ -58,14 +60,15 @@ function menu() {
         });
         break;
 
-      case '5':  // 🔍 SEARCH FUNCTIONALITY
+      case '5':  
+        // 🔎 SEARCH FUNCTIONALITY
         rl.question('Enter search keyword (ID or Name): ', keyword => {
           const all = db.listRecords();
           const lower = keyword.toLowerCase();
 
           const results = all.filter(r =>
             r.name.toLowerCase().includes(lower) ||
-            String(r.id).includes(keyword) // ID search
+            String(r.id).includes(keyword)
           );
 
           if (results.length === 0) {
@@ -81,7 +84,78 @@ function menu() {
         });
         break;
 
-      case '6':
+      case '6':  
+        // 🔽 SORTING FEATURE
+        const all = db.listRecords();
+
+        if (all.length === 0) {
+          console.log('No records found to sort.');
+          return menu();
+        }
+
+        console.log(`
+Choose field to sort by:
+1. Name
+2. Creation Date
+        `);
+
+        rl.question('Enter option: ', fieldChoice => {
+          let field = null;
+
+          if (fieldChoice.trim() === '1') field = 'name';
+          else if (fieldChoice.trim() === '2') field = 'createdAt';
+          else {
+            console.log('Invalid option.');
+            return menu();
+          }
+
+          console.log(`
+Choose order:
+1. Ascending
+2. Descending
+          `);
+
+          rl.question('Enter option: ', orderChoice => {
+            let ascending = true;
+            if (orderChoice.trim() === '1') ascending = true;
+            else if (orderChoice.trim() === '2') ascending = false;
+            else {
+              console.log('Invalid option.');
+              return menu();
+            }
+
+            // Clone to avoid changing actual DB data
+            const sorted = [...all];
+
+            sorted.sort((a, b) => {
+              if (field === 'name') {
+                const nameA = a.name.toLowerCase();
+                const nameB = b.name.toLowerCase();
+                if (nameA < nameB) return ascending ? -1 : 1;
+                if (nameA > nameB) return ascending ? 1 : -1;
+                return 0;
+              }
+
+              if (field === 'createdAt') {
+                const tA = new Date(a.createdAt).getTime();
+                const tB = new Date(b.createdAt).getTime();
+                return ascending ? tA - tB : tB - tA;
+              }
+            });
+
+            console.log(`\n📌 Sorted Records:\n`);
+            sorted.forEach((r, i) => {
+              console.log(
+                `${i + 1}. ID: ${r.id} | Name: ${r.name} | Value: ${r.value} | Created: ${r.createdAt}`
+              );
+            });
+
+            menu();
+          });
+        });
+        break;
+
+      case '7':
         console.log('👋 Exiting NodeVault...');
         rl.close();
         break;
