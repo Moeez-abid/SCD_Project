@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const readline = require('readline');
 const db = require('./db');
 require('./events/logger'); // Initialize event logger
@@ -7,6 +8,7 @@ const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
+
 
 function exportVaultData(records) {
   const exportFile = 'export.txt';
@@ -47,7 +49,8 @@ function menu() {
 5. Search Records
 6. Sort Records
 7. Export Data
-8. Exit
+8. View Vault Statistics
+9. Exit
 =====================
 `);
 
@@ -190,8 +193,12 @@ Choose order:
   	exportVaultData(recordsToExport);
   	menu();
   	break;
-
       case '8':
+  	showVaultStatistics();
+  	menu();
+  	break;
+
+      case '9':
         console.log('👋 Exiting NodeVault...');
         rl.close();
         break;

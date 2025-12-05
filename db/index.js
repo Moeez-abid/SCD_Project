@@ -36,7 +36,8 @@ function addRecord({ name, value }) {
     id: recordUtils.generateId(),
     name, 
     value,
-    createdAt: new Date().toISOString()   // ✅ auto creation date
+    createdAt: new Date().toISOString(),   // ✅ auto creation date
+    updatedAt: new Date().toISOString()
   };
 
   data.push(newRecord);
