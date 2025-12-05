@@ -4,13 +4,24 @@ const vaultEvents = require('../events');
 
 function addRecord({ name, value }) {
   recordUtils.validateRecord({ name, value });
+  
   const data = fileDB.readDB();
-  const newRecord = { id: recordUtils.generateId(), name, value };
+
+  const newRecord = { 
+    id: recordUtils.generateId(),
+    name, 
+    value,
+    createdAt: new Date().toISOString()   // ✅ auto creation date
+  };
+
   data.push(newRecord);
   fileDB.writeDB(data);
+
   vaultEvents.emit('recordAdded', newRecord);
+
   return newRecord;
 }
+
 
 function listRecords() {
   return fileDB.readDB();
