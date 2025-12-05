@@ -1,6 +1,31 @@
+const fs = require('fs');
+const path = require('path');
 const fileDB = require('./file');
 const recordUtils = require('./record');
 const vaultEvents = require('../events');
+
+function createBackup(records) {
+  const backupsDir = path.join(__dirname, '..', 'backups');
+
+  // Create /backups folder if not exists
+  if (!fs.existsSync(backupsDir)) {
+    fs.mkdirSync(backupsDir);
+  }
+
+  // Timestamp format: 2025-11-04_15-22-10
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/T/, '_')
+    .replace(/:/g, '-')
+    .replace(/\..+/, '');
+
+  const filename = `backup_${timestamp}.json`;
+  const filepath = path.join(backupsDir, filename);
+
+  fs.writeFileSync(filepath, JSON.stringify(records, null, 2));
+
+  console.log(`💾 Backup created: ${filename}`);
+}
 
 function addRecord({ name, value }) {
   recordUtils.validateRecord({ name, value });
@@ -16,7 +41,7 @@ function addRecord({ name, value }) {
 
   data.push(newRecord);
   fileDB.writeDB(data);
-
+  createBackup(data);
   vaultEvents.emit('recordAdded', newRecord);
 
   return newRecord;
@@ -44,6 +69,7 @@ function deleteRecord(id) {
   if (!record) return null;
   data = data.filter(r => r.id !== id);
   fileDB.writeDB(data);
+  createBackup(data);
   vaultEvents.emit('recordDeleted', record);
   return record;
 }
