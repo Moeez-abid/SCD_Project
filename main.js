@@ -8,7 +8,51 @@ const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
+function showVaultStatistics() {
+  const records = db.listRecords();
 
+  console.log("\nVault Statistics:");
+  console.log("--------------------------");
+
+  // Total Records
+  console.log(`Total Records: ${records.length}`);
+
+  // Last Modified (from DB file timestamp)
+  let lastModified = "N/A";
+  if (records.length > 0) {
+    const latestUpdate = records.reduce((latest, r) => {
+      const updated = r.updatedAt || r.createdAt;
+      return new Date(updated) > new Date(latest) ? updated : latest;
+    }, records[0].updatedAt || records[0].createdAt);
+
+    lastModified = new Date(latestUpdate).toLocaleString();
+  }
+
+
+  console.log(`Last Modified: ${lastModified}`);
+
+  // Longest Name
+  if (records.length > 0) {
+    const longest = records.reduce((max, r) =>
+      r.name.length > max.name.length ? r : max
+    );
+
+    console.log(`Longest Name: ${longest.name} (${longest.name.length} characters)`);
+
+    // Earliest and Latest Creation Dates
+    const sortedByDate = [...records].sort(
+      (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+    );
+
+    const earliest = sortedByDate[0].createdAt.split("T")[0];
+    const latest = sortedByDate[sortedByDate.length - 1].createdAt.split("T")[0];
+
+    console.log(`Earliest Record: ${earliest}`);
+    console.log(`Latest Record: ${latest}`);
+  }
+
+  console.log("");
+}
 
 function exportVaultData(records) {
   const exportFile = 'export.txt';
