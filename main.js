@@ -14,7 +14,8 @@ function menu() {
 2. List Records
 3. Update Record
 4. Delete Record
-5. Exit
+5. Search Records
+6. Exit
 =====================
   `);
 
@@ -57,7 +58,30 @@ function menu() {
         });
         break;
 
-      case '5':
+      case '5':  // 🔍 SEARCH FUNCTIONALITY
+        rl.question('Enter search keyword (ID or Name): ', keyword => {
+          const all = db.listRecords();
+          const lower = keyword.toLowerCase();
+
+          const results = all.filter(r =>
+            r.name.toLowerCase().includes(lower) ||
+            String(r.id).includes(keyword) // ID search
+          );
+
+          if (results.length === 0) {
+            console.log('❌ No matching records found.');
+          } else {
+            console.log(`🔎 Found ${results.length} matching record(s):`);
+            results.forEach(r =>
+              console.log(`ID: ${r.id} | Name: ${r.name} | Value: ${r.value}`)
+            );
+          }
+
+          menu();
+        });
+        break;
+
+      case '6':
         console.log('👋 Exiting NodeVault...');
         rl.close();
         break;
@@ -70,3 +94,4 @@ function menu() {
 }
 
 menu();
+
