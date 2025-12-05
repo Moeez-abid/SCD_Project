@@ -1,3 +1,4 @@
+const fs = require('fs');
 const readline = require('readline');
 const db = require('./db');
 require('./events/logger'); // Initialize event logger
@@ -6,6 +7,35 @@ const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
+
+function exportVaultData(records) {
+  const exportFile = 'export.txt';
+  const now = new Date();
+
+  // Header
+  let output = `===== NodeVault Export =====
+File: ${exportFile}
+Exported On: ${now.toLocaleString()}
+Total Records: ${records.length}
+=================================\n\n`;
+
+  // Body (each record)
+  if (records.length === 0) {
+    output += "No records found.\n";
+  } else {
+    records.forEach((r, index) => {
+      output += `${index + 1}. ID: ${r.id}\n`;
+      output += `   Name: ${r.name}\n`;
+      output += `   Value: ${r.value}\n`;
+      output += `   Created: ${r.createdAt}\n\n`;
+    });
+  }
+
+  // Write to file
+  fs.writeFileSync(exportFile, output);
+
+  console.log(`📄 Data exported successfully to ${exportFile}`);
+}
 
 function menu() {
   console.log(`
@@ -16,9 +46,10 @@ function menu() {
 4. Delete Record
 5. Search Records
 6. Sort Records
-7. Exit
+7. Export Data
+8. Exit
 =====================
-  `);
+`);
 
   rl.question('Choose option: ', ans => {
     switch (ans.trim()) {
@@ -154,8 +185,13 @@ Choose order:
           });
         });
         break;
-
       case '7':
+  	const recordsToExport = db.listRecords();
+  	exportVaultData(recordsToExport);
+  	menu();
+  	break;
+
+      case '8':
         console.log('👋 Exiting NodeVault...');
         rl.close();
         break;
