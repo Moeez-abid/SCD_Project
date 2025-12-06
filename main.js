@@ -1,23 +1,25 @@
-const fs = require('fs');
-const path = require('path');
 const readline = require('readline');
+const mongoose = require('mongoose');
 const db = require('./db');
-require('./events/logger'); // Initialize event logger
+const fs = require('fs');
+require('./events/logger');
 
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
-function showVaultStatistics() {
-  const records = db.listRecords();
+
+const mongoURI = 'mongodb://root:pass123@localhost:27017/nodevault?authSource=admin'; // Adjust if needed
+
+// ------------------- Vault Statistics -------------------
+async function showVaultStatistics() {
+  const records = await db.listRecords();
 
   console.log("\nVault Statistics:");
   console.log("--------------------------");
-
-  // Total Records
   console.log(`Total Records: ${records.length}`);
 
-  // Last Modified (from DB file timestamp)
+  // ---------------- Last Modified ----------------
   let lastModified = "N/A";
   if (records.length > 0) {
     const latestUpdate = records.reduce((latest, r) => {
@@ -27,62 +29,60 @@ function showVaultStatistics() {
 
     lastModified = new Date(latestUpdate).toLocaleString();
   }
-
-
   console.log(`Last Modified: ${lastModified}`);
 
-  // Longest Name
+  // ---------------- Other Stats ----------------
   if (records.length > 0) {
+
+    // Longest Name
     const longest = records.reduce((max, r) =>
       r.name.length > max.name.length ? r : max
     );
-
     console.log(`Longest Name: ${longest.name} (${longest.name.length} characters)`);
 
-    // Earliest and Latest Creation Dates
-    const sortedByDate = [...records].sort(
-      (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
-    );
+    // Sort by creation date
+    const sortedByDate = [...records]
+      .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
-    const earliest = sortedByDate[0].createdAt.split("T")[0];
-    const latest = sortedByDate[sortedByDate.length - 1].createdAt.split("T")[0];
+    const earliestDate = new Date(sortedByDate[0].createdAt)
+      .toISOString()
+      .split("T")[0];
 
-    console.log(`Earliest Record: ${earliest}`);
-    console.log(`Latest Record: ${latest}`);
+    const latestDate = new Date(sortedByDate[sortedByDate.length - 1].createdAt)
+      .toISOString()
+      .split("T")[0];
+
+    console.log(`Earliest Record: ${earliestDate}`);
+    console.log(`Latest Record: ${latestDate}`);
   }
 
   console.log("");
 }
 
+
+// ------------------- Export Data -------------------
 function exportVaultData(records) {
   const exportFile = 'export.txt';
   const now = new Date();
 
-  // Header
   let output = `===== NodeVault Export =====
 File: ${exportFile}
 Exported On: ${now.toLocaleString()}
 Total Records: ${records.length}
-=================================\n\n`;
+================================\n\n`;
 
-  // Body (each record)
-  if (records.length === 0) {
-    output += "No records found.\n";
-  } else {
-    records.forEach((r, index) => {
-      output += `${index + 1}. ID: ${r.id}\n`;
-      output += `   Name: ${r.name}\n`;
-      output += `   Value: ${r.value}\n`;
-      output += `   Created: ${r.createdAt}\n\n`;
+  if (records.length === 0) output += "No records found.\n";
+  else {
+    records.forEach((r, i) => {
+      output += `${i + 1}. ID: ${r.id}\n   Name: ${r.name}\n   Value: ${r.value}\n   Created: ${r.createdAt}\n\n`;
     });
   }
 
-  // Write to file
   fs.writeFileSync(exportFile, output);
-
   console.log(`📄 Data exported successfully to ${exportFile}`);
 }
 
+// ------------------- Menu -------------------
 function menu() {
   console.log(`
 ===== NodeVault =====
@@ -101,151 +101,117 @@ function menu() {
   rl.question('Choose option: ', ans => {
     switch (ans.trim()) {
 
-      case '1':
+      case '1': // Add
         rl.question('Enter name: ', name => {
           rl.question('Enter value: ', value => {
-            db.addRecord({ name, value });
-            console.log('✅ Record added successfully!');
-            menu();
+            (async () => {
+              const newRec = await db.addRecord({ name, value });
+              console.log(`✅ Record added successfully! ID: ${newRec.id}`);
+              menu();
+            })();
           });
         });
         break;
 
-      case '2':
-        const records = db.listRecords();
-        if (records.length === 0) console.log('No records found.');
-        else records.forEach(r => console.log(`ID: ${r.id} | Name: ${r.name} | Value: ${r.value}`));
-        menu();
+      case '2': // List
+        (async () => {
+          const records = await db.listRecords();
+          if (records.length === 0) console.log('No records found.');
+          else records.forEach(r => console.log(`ID: ${r.id} | Name: ${r.name} | Value: ${r.value}`));
+          menu();
+        })();
         break;
 
-      case '3':
+      case '3': // Update
         rl.question('Enter record ID to update: ', id => {
           rl.question('New name: ', name => {
             rl.question('New value: ', value => {
-              const updated = db.updateRecord(Number(id), name, value);
-              console.log(updated ? '✅ Record updated!' : '❌ Record not found.');
+              (async () => {
+                const updated = await db.updateRecord(Number(id), name, value);
+                console.log(updated ? '✅ Record updated!' : '❌ Record not found.');
+                menu();
+              })();
+            });
+          });
+        });
+        break;
+
+      case '4': // Delete
+        rl.question('Enter record ID to delete: ', id => {
+          (async () => {
+            const deleted = await db.deleteRecord(Number(id));
+            console.log(deleted ? '🗑️ Record deleted!' : '❌ Record not found.');
+            menu();
+          })();
+        });
+        break;
+
+      case '5': // Search
+        rl.question('Enter search keyword (ID or Name): ', keyword => {
+          (async () => {
+            const all = await db.listRecords();
+            const lower = keyword.toLowerCase();
+            const results = all.filter(r => r.name.toLowerCase().includes(lower) || String(r.id).includes(keyword));
+            if (results.length === 0) console.log('❌ No matching records found.');
+            else {
+              console.log(`🔎 Found ${results.length} record(s):`);
+              results.forEach(r => console.log(`ID: ${r.id} | Name: ${r.name} | Value: ${r.value}`));
+            }
+            menu();
+          })();
+        });
+        break;
+
+      case '6': // Sort
+        (async () => {
+          const all = await db.listRecords();
+          if (all.length === 0) { console.log('No records to sort.'); return menu(); }
+
+          console.log(`Choose field to sort by:\n1. Name\n2. Creation Date`);
+          rl.question('Enter option: ', fieldChoice => {
+            const field = fieldChoice.trim() === '1' ? 'name' : fieldChoice.trim() === '2' ? 'createdAt' : null;
+            if (!field) { console.log('Invalid option.'); return menu(); }
+
+            console.log(`Choose order:\n1. Ascending\n2. Descending`);
+            rl.question('Enter option: ', orderChoice => {
+              const ascending = orderChoice.trim() === '1' ? true : orderChoice.trim() === '2' ? false : null;
+              if (ascending === null) { console.log('Invalid option.'); return menu(); }
+
+              const sorted = [...all].sort((a, b) => {
+                if (field === 'name') return ascending ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+                if (field === 'createdAt') return ascending ? new Date(a.createdAt) - new Date(b.createdAt) : new Date(b.createdAt) - new Date(a.createdAt);
+              });
+
+              console.log(`\n📌 Sorted Records:\n`);
+              sorted.forEach((r, i) => console.log(`${i + 1}. ID: ${r.id} | Name: ${r.name} | Value: ${r.value} | Created: ${r.createdAt}`));
               menu();
             });
           });
-        });
+        })();
         break;
 
-      case '4':
-        rl.question('Enter record ID to delete: ', id => {
-          const deleted = db.deleteRecord(Number(id));
-          console.log(deleted ? '🗑️ Record deleted!' : '❌ Record not found.');
+      case '7': // Export
+        (async () => {
+          const recordsToExport = await db.listRecords();
+          exportVaultData(recordsToExport);
           menu();
-        });
+        })();
         break;
 
-      case '5':  
-        // 🔎 SEARCH FUNCTIONALITY
-        rl.question('Enter search keyword (ID or Name): ', keyword => {
-          const all = db.listRecords();
-          const lower = keyword.toLowerCase();
-
-          const results = all.filter(r =>
-            r.name.toLowerCase().includes(lower) ||
-            String(r.id).includes(keyword)
-          );
-
-          if (results.length === 0) {
-            console.log('❌ No matching records found.');
-          } else {
-            console.log(`🔎 Found ${results.length} matching record(s):`);
-            results.forEach(r =>
-              console.log(`ID: ${r.id} | Name: ${r.name} | Value: ${r.value}`)
-            );
-          }
-
+      case '8': // Statistics
+        (async () => {
+          await showVaultStatistics();
           menu();
-        });
+        })();
         break;
 
-      case '6':  
-        // 🔽 SORTING FEATURE
-        const all = db.listRecords();
-
-        if (all.length === 0) {
-          console.log('No records found to sort.');
-          return menu();
-        }
-
-        console.log(`
-Choose field to sort by:
-1. Name
-2. Creation Date
-        `);
-
-        rl.question('Enter option: ', fieldChoice => {
-          let field = null;
-
-          if (fieldChoice.trim() === '1') field = 'name';
-          else if (fieldChoice.trim() === '2') field = 'createdAt';
-          else {
-            console.log('Invalid option.');
-            return menu();
-          }
-
-          console.log(`
-Choose order:
-1. Ascending
-2. Descending
-          `);
-
-          rl.question('Enter option: ', orderChoice => {
-            let ascending = true;
-            if (orderChoice.trim() === '1') ascending = true;
-            else if (orderChoice.trim() === '2') ascending = false;
-            else {
-              console.log('Invalid option.');
-              return menu();
-            }
-
-            // Clone to avoid changing actual DB data
-            const sorted = [...all];
-
-            sorted.sort((a, b) => {
-              if (field === 'name') {
-                const nameA = a.name.toLowerCase();
-                const nameB = b.name.toLowerCase();
-                if (nameA < nameB) return ascending ? -1 : 1;
-                if (nameA > nameB) return ascending ? 1 : -1;
-                return 0;
-              }
-
-              if (field === 'createdAt') {
-                const tA = new Date(a.createdAt).getTime();
-                const tB = new Date(b.createdAt).getTime();
-                return ascending ? tA - tB : tB - tA;
-              }
-            });
-
-            console.log(`\n📌 Sorted Records:\n`);
-            sorted.forEach((r, i) => {
-              console.log(
-                `${i + 1}. ID: ${r.id} | Name: ${r.name} | Value: ${r.value} | Created: ${r.createdAt}`
-              );
-            });
-
-            menu();
-          });
-        });
-        break;
-      case '7':
-  	const recordsToExport = db.listRecords();
-  	exportVaultData(recordsToExport);
-  	menu();
-  	break;
-      case '8':
-  	showVaultStatistics();
-  	menu();
+      case '9': // Exit
+  	console.log('👋 Exiting NodeVault...');
+  	mongoose.connection.close(); // 🔥 Close DB connection
+  	rl.close();
+  	process.exit(0); // 🔥 Force exit cleanly
   	break;
 
-      case '9':
-        console.log('👋 Exiting NodeVault...');
-        rl.close();
-        break;
 
       default:
         console.log('Invalid option.');
@@ -254,5 +220,17 @@ Choose order:
   });
 }
 
-menu();
+// ------------------- Start App -------------------
+async function initApp() {
+  try {
+    await mongoose.connect(mongoURI);
+    console.log('✅ Connected to MongoDB');
+    menu();
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  }
+}
+
+initApp();
 

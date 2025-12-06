@@ -1,78 +1,90 @@
+const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
-const fileDB = require('./file');
-const recordUtils = require('./record');
-const vaultEvents = require('../events');
+const vaultEvents = require('../events'); // your existing events
 
+// ------------------- Schema -------------------
+const recordSchema = new mongoose.Schema({
+  id: { type: Number, required: true, unique: true },
+  name: { type: String, required: true },
+  value: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+// Pre-save hook to update updatedAt
+recordSchema.pre('save', function () {
+  this.updatedAt = new Date();
+});
+
+
+const Record = mongoose.model('Record', recordSchema);
+
+// ------------------- Backup -------------------
 function createBackup(records) {
   const backupsDir = path.join(__dirname, '..', 'backups');
+  if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir);
 
-  // Create /backups folder if not exists
-  if (!fs.existsSync(backupsDir)) {
-    fs.mkdirSync(backupsDir);
-  }
-
-  // Timestamp format: 2025-11-04_15-22-10
-  const timestamp = new Date()
-    .toISOString()
+  const timestamp = new Date().toISOString()
     .replace(/T/, '_')
     .replace(/:/g, '-')
     .replace(/\..+/, '');
-
   const filename = `backup_${timestamp}.json`;
   const filepath = path.join(backupsDir, filename);
 
   fs.writeFileSync(filepath, JSON.stringify(records, null, 2));
-
   console.log(`💾 Backup created: ${filename}`);
 }
 
-function addRecord({ name, value }) {
-  recordUtils.validateRecord({ name, value });
-  
-  const data = fileDB.readDB();
+// ------------------- Utility -------------------
+function generateId() {
+  return Math.floor(Math.random() * 1000000); // simple unique ID
+}
 
-  const newRecord = { 
-    id: recordUtils.generateId(),
-    name, 
-    value,
-    createdAt: new Date().toISOString(),   // ✅ auto creation date
-    updatedAt: new Date().toISOString()
-  };
+// ------------------- CRUD Functions -------------------
+async function addRecord({ name, value }) {
+  const id = generateId();
+  const newRecord = new Record({ id, name, value });
+  await newRecord.save();
 
-  data.push(newRecord);
-  fileDB.writeDB(data);
-  createBackup(data);
+  const allRecords = await listRecords();
+  createBackup(allRecords);
+
   vaultEvents.emit('recordAdded', newRecord);
-
   return newRecord;
 }
 
-
-function listRecords() {
-  return fileDB.readDB();
+async function listRecords() {
+  return await Record.find().lean();
 }
 
-function updateRecord(id, newName, newValue) {
-  const data = fileDB.readDB();
-  const record = data.find(r => r.id === id);
+async function updateRecord(id, newName, newValue) {
+  const record = await Record.findOne({ id });
   if (!record) return null;
+
   record.name = newName;
   record.value = newValue;
-  fileDB.writeDB(data);
+  await record.save();
+
   vaultEvents.emit('recordUpdated', record);
   return record;
 }
 
-function deleteRecord(id) {
-  let data = fileDB.readDB();
-  const record = data.find(r => r.id === id);
+async function deleteRecord(id) {
+  const record = await Record.findOneAndDelete({ id });
   if (!record) return null;
-  data = data.filter(r => r.id !== id);
-  fileDB.writeDB(data);
-  createBackup(data);
+
+  const allRecords = await listRecords();
+  createBackup(allRecords);
+
   vaultEvents.emit('recordDeleted', record);
   return record;
 }
 
-module.exports = { addRecord, listRecords, updateRecord, deleteRecord };
+module.exports = {
+  addRecord,
+  listRecords,
+  updateRecord,
+  deleteRecord
+};
+
