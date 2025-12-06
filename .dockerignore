@@ -1,0 +1,28 @@
+# Node modules (install inside Docker)
+node_modules
+
+# Logs
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+*.log
+
+# Environment files (optional: you may mount .env instead)
+.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Backup files
+backups/
+
+# Git files
+.git
+.gitignore
+
+# Temporary files
+tmp/
+temp/
+
+
