@@ -2,6 +2,11 @@ const readline = require('readline');
 const mongoose = require('mongoose');
 const db = require('./db');
 const fs = require('fs');
+require('dotenv').config();  // Load .env variables
+
+const mongoURI = process.env.MONGO_URI;  // Use environment variable
+
+
 require('./events/logger');
 
 const rl = readline.createInterface({
@@ -9,7 +14,6 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
-const mongoURI = 'mongodb://root:pass123@localhost:27017/nodevault?authSource=admin'; // Adjust if needed
 
 // ------------------- Vault Statistics -------------------
 async function showVaultStatistics() {
