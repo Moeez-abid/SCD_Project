@@ -1,0 +1,54 @@
+
+services:
+  # MongoDB Database Service
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb-compose
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE}
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - nodevault-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Node.js Backend Service
+  backend:
+    image: moeezabid/nodevault-backend:1.0
+    container_name: nodevault-compose
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=${MONGO_URI}   # Matches main.js
+      - NODE_ENV=${NODE_ENV}
+    networks:
+      - nodevault-network
+    ports:
+      - "3000:3000"
+    command: node main.js
+    stdin_open: true      # Enable interactive stdin for readline
+    tty: true             # Enable terminal
+
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  nodevault-network:
+    driver: bridge
+
